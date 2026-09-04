@@ -1,0 +1,27 @@
+# Runtime output and transient diagnostics
+logs/
+*.log
+
+# Historical analysis material and downloaded/captured artifacts
+analysis/
+backup/
+*.tar.gz
+*.zip
+*.html.tmp
+
+# Python bytecode and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# One-off local rollback copies
+*.bak_before_*
