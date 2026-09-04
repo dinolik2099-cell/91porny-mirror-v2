@@ -49,6 +49,13 @@ TEXT_SLOT_AD_BLACKLIST = {
 }
 
 
+# This video-card layout is rendered in a .colVideoList wrapper instead of
+# the homepage .col-30/.video-elem.mb-3 grid used by VIDEO_CARD_AD_BLACKLIST.
+VIDEO_LIST_CARD_AD_BLACKLIST = {
+    "https://psuu.bahwhr.cc/",
+}
+
+
 # ============================================================
 # HELPERS
 # ============================================================
@@ -218,6 +225,36 @@ def _has_banner_image_cell_classes(opening_tag):
     return "col-sm" in set(class_match.group(1).split())
 
 
+def _has_video_list_card_classes(opening_tag):
+    """Return whether an opening div is the outer slot of a list video card."""
+
+    class_match = re.search(
+        r'\bclass\s*=\s*["\']([^"\']*)["\']',
+        opening_tag,
+        re.IGNORECASE,
+    )
+
+    if not class_match:
+        return False
+
+    return "colVideoList" in set(class_match.group(1).split())
+
+
+def _has_video_elem_class(opening_tag):
+    """Return whether an opening div is an inner video element."""
+
+    class_match = re.search(
+        r'\bclass\s*=\s*["\']([^"\']*)["\']',
+        opening_tag,
+        re.IGNORECASE,
+    )
+
+    if not class_match:
+        return False
+
+    return "video-elem" in set(class_match.group(1).split())
+
+
 def _find_matching_div_end(text, opening_start):
     """Return the end offset of a div container, respecting nested divs."""
 
@@ -300,6 +337,68 @@ def _remove_video_card_ads(text):
     output.append(text[cursor:])
     print(
         "[VIDEO_CARD_AD] "
+        f"blacklist_hits={blacklist_hits} "
+        f"containers_removed={containers_removed}"
+    )
+    return "".join(output)
+
+
+def _remove_video_list_card_ads(text):
+    """Remove blacklisted cards only from complete .colVideoList wrappers."""
+
+    container_pattern = re.compile(r"<div\b[^>]*>", re.IGNORECASE)
+    href_pattern = re.compile(
+        r'<a\b[^>]*\bhref\s*=\s*["\']([^"\']+)["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    blacklist_hits = 0
+    containers_removed = 0
+    cursor = 0
+    output = []
+
+    for container_match in container_pattern.finditer(text):
+        if container_match.start() < cursor:
+            continue
+
+        opening_tag = container_match.group(0)
+
+        if not _has_video_list_card_classes(opening_tag):
+            continue
+
+        container_end = _find_matching_div_end(text, container_match.start())
+
+        if container_end is None:
+            continue
+
+        container_html = text[container_match.start():container_end]
+        has_video_element = any(
+            _has_video_elem_class(match.group(0))
+            for match in container_pattern.finditer(container_html)
+        )
+
+        if not has_video_element:
+            continue
+
+        matched_hrefs = {
+            match.group(1).strip()
+            for match in href_pattern.finditer(container_html)
+        }.intersection(VIDEO_LIST_CARD_AD_BLACKLIST)
+
+        if not matched_hrefs:
+            continue
+
+        output.append(text[cursor:container_match.start()])
+        cursor = container_end
+        blacklist_hits += len(matched_hrefs)
+        containers_removed += 1
+
+    if not containers_removed:
+        print("[VIDEO_LIST_CARD_AD] blacklist_hits=0 containers_removed=0")
+        return text
+
+    output.append(text[cursor:])
+    print(
+        "[VIDEO_LIST_CARD_AD] "
         f"blacklist_hits={blacklist_hits} "
         f"containers_removed={containers_removed}"
     )
@@ -635,6 +734,7 @@ def rewrite_ad(text):
     """
 
     text = _remove_video_card_ads(text)
+    text = _remove_video_list_card_ads(text)
     text = _remove_banner_image_ads(text)
     text = _remove_text_slot_ads(text)
     return text
