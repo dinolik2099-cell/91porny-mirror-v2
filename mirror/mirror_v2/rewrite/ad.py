@@ -32,6 +32,9 @@ SKIP_MARKER = "跳过"
 # container; it is never a whole-page text replacement.
 VIDEO_CARD_AD_HREF_FEATURE_BLACKLIST = {
     "cid=4957645",
+    "cid=8557280",
+    "www.by2599.cc",
+    "xm8050-2",
 }
 
 
@@ -39,9 +42,17 @@ VIDEO_CARD_AD_HREF_FEATURE_BLACKLIST = {
 # their rules separate even when an advertising destination happens to match.
 BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST = {
     "cid=4957645",
+    "cid=9738938",
+    "cid=7827252",
     "cid=8361535",
     "channelCode=mfd024",
+    "pg6007",
     "psuu.bahwhr.cc",
+    "908b.8424133.cc",
+    "www.by2599.cc",
+    "proxyAccount=78701879",
+    "737d.7370179.cc",
+    "cid=8557280",
 }
 
 
@@ -49,14 +60,26 @@ BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST = {
 # image-banner cells, even where both share a destination URL.
 TEXT_SLOT_AD_HREF_FEATURE_BLACKLIST = {
     "cid=4957645",
+    "blt021",
+    "cid=5318700",
+    "1Aj.html",
+    "dc=csCTXyr6",
     "channelCode=mfd024",
+    "cid=7827252",
+    "dc=xf280",
+    "tdy72j4",
+    "908b.8424133.cc",
+    "737d.7370179.cc",
 }
 
 
 # This video-card layout is rendered in a .colVideoList wrapper instead of
 # the homepage .col-30/.video-elem.mb-3 grid used by VIDEO_CARD_AD.
 VIDEO_LIST_CARD_AD_HREF_FEATURE_BLACKLIST = {
+    "cid=9738938",
+    "cid=7827252",
     "cid=8361535",
+    "channelCode=sck227",
     "channelCode=mfd024",
     "psuu.bahwhr.cc",
 }
@@ -217,7 +240,7 @@ def _has_video_card_slot_classes(opening_tag):
 
 
 def _has_banner_image_cell_classes(opening_tag):
-    """Return whether an opening div is a single banner-grid cell."""
+    """Return whether an opening div is a normal or responsive banner cell."""
 
     class_match = re.search(
         r'\bclass\s*=\s*["\']([^"\']*)["\']',
@@ -228,7 +251,8 @@ def _has_banner_image_cell_classes(opening_tag):
     if not class_match:
         return False
 
-    return "col-sm" in set(class_match.group(1).split())
+    classes = set(class_match.group(1).split())
+    return bool({"col-sm", "col-sm-auto"}.intersection(classes))
 
 
 def _has_video_list_card_classes(opening_tag):
