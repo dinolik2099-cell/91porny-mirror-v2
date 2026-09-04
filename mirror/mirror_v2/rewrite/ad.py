@@ -39,6 +39,8 @@ VIDEO_CARD_AD_HREF_FEATURE_BLACKLIST = {
 # their rules separate even when an advertising destination happens to match.
 BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST = {
     "cid=4957645",
+    "cid=8361535",
+    "channelCode=mfd024",
     "psuu.bahwhr.cc",
 }
 
@@ -47,12 +49,15 @@ BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST = {
 # image-banner cells, even where both share a destination URL.
 TEXT_SLOT_AD_HREF_FEATURE_BLACKLIST = {
     "cid=4957645",
+    "channelCode=mfd024",
 }
 
 
 # This video-card layout is rendered in a .colVideoList wrapper instead of
 # the homepage .col-30/.video-elem.mb-3 grid used by VIDEO_CARD_AD.
 VIDEO_LIST_CARD_AD_HREF_FEATURE_BLACKLIST = {
+    "cid=8361535",
+    "channelCode=mfd024",
     "psuu.bahwhr.cc",
 }
 
