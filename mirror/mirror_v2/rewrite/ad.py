@@ -56,6 +56,14 @@ BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST = {
 }
 
 
+# Mobile image banners are rendered in their own responsive row rather than
+# in a desktop .col-sm/.col-sm-auto cell.  Keep this rule separate so it
+# cannot broaden the desktop banner contract.
+MOBILE_BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST = {
+    "cid=8557280",
+}
+
+
 # Text slots are alert-style blocks and are intentionally kept separate from
 # image-banner cells, even where both share a destination URL.
 TEXT_SLOT_AD_HREF_FEATURE_BLACKLIST = {
@@ -253,6 +261,22 @@ def _has_banner_image_cell_classes(opening_tag):
 
     classes = set(class_match.group(1).split())
     return bool({"col-sm", "col-sm-auto"}.intersection(classes))
+
+
+def _has_mobile_banner_image_row_classes(opening_tag):
+    """Return whether an opening div is the dedicated mobile banner row."""
+
+    class_match = re.search(
+        r'\bclass\s*=\s*["\']([^"\']*)["\']',
+        opening_tag,
+        re.IGNORECASE,
+    )
+
+    if not class_match:
+        return False
+
+    classes = set(class_match.group(1).split())
+    return {"row", "d-block", "d-sm-none"}.issubset(classes)
 
 
 def _has_video_list_card_classes(opening_tag):
@@ -511,6 +535,61 @@ def _remove_banner_image_ads(text):
     print(
         "[BANNER_IMAGE_AD] "
         f"blacklist_hits={blacklist_hits} cells_removed={cells_removed}"
+    )
+    return "".join(output)
+
+
+def _remove_mobile_banner_image_ads(text):
+    """Remove blacklisted image banners only from dedicated mobile rows."""
+
+    container_pattern = re.compile(r"<div\b[^>]*>", re.IGNORECASE)
+    href_pattern = re.compile(
+        r'<a\b[^>]*\bhref\s*=\s*["\']([^"\']+)["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    image_pattern = re.compile(
+        r'<img\b[^>]*(?:\bsrc|\bdata-src)\s*=\s*["\'][^"\']+["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    blacklist_hits = 0
+    rows_removed = 0
+    cursor = 0
+    output = []
+
+    for container_match in container_pattern.finditer(text):
+        if not _has_mobile_banner_image_row_classes(container_match.group(0)):
+            continue
+
+        container_end = _find_matching_div_end(text, container_match.start())
+
+        if container_end is None:
+            continue
+
+        container_html = text[container_match.start():container_end]
+        hrefs = {
+            match.group(1).strip()
+            for match in href_pattern.finditer(container_html)
+        }
+        matched_features = _match_href_features(
+            hrefs, MOBILE_BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST
+        )
+
+        if not matched_features or not image_pattern.search(container_html):
+            continue
+
+        output.append(text[cursor:container_match.start()])
+        cursor = container_end
+        blacklist_hits += len(matched_features)
+        rows_removed += 1
+
+    if not rows_removed:
+        print("[MOBILE_BANNER_IMAGE_AD] blacklist_hits=0 rows_removed=0")
+        return text
+
+    output.append(text[cursor:])
+    print(
+        "[MOBILE_BANNER_IMAGE_AD] "
+        f"blacklist_hits={blacklist_hits} rows_removed={rows_removed}"
     )
     return "".join(output)
 
@@ -792,6 +871,7 @@ def rewrite_ad(text):
     text = _remove_video_card_ads(text)
     text = _remove_video_list_card_ads(text)
     text = _remove_banner_image_ads(text)
+    text = _remove_mobile_banner_image_ads(text)
     text = _remove_text_slot_ads(text)
     return text
 
