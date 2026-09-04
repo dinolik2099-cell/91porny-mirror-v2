@@ -41,6 +41,13 @@ BANNER_IMAGE_AD_BLACKLIST = {
 }
 
 
+# Text slots are alert-style blocks and are intentionally kept separate from
+# image-banner cells, even where both share a destination URL.
+TEXT_SLOT_AD_BLACKLIST = {
+    "https://evexymcv.cxksgtl.cc:6704/88.html?cid=4957645",
+}
+
+
 # ============================================================
 # HELPERS
 # ============================================================
@@ -355,6 +362,71 @@ def _remove_banner_image_ads(text):
     return "".join(output)
 
 
+def _remove_text_slot_ads(text):
+    """Remove only blacklisted alert-style text-ad cells from their grid rows."""
+
+    container_pattern = re.compile(r"<div\b[^>]*>", re.IGNORECASE)
+    href_pattern = re.compile(
+        r'<a\b[^>]*\bhref\s*=\s*["\']([^"\']+)["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    alert_pattern = re.compile(
+        r'<div\b[^>]*\bclass\s*=\s*["\'][^"\']*\balert\b[^"\']*["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    text_pattern = re.compile(
+        r'<span\b[^>]*\bclass\s*=\s*["\'][^"\']*\btext-danger\b[^"\']*["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    blacklist_hits = 0
+    cells_removed = 0
+    cursor = 0
+    output = []
+
+    for container_match in container_pattern.finditer(text):
+        if container_match.start() < cursor:
+            continue
+
+        opening_tag = container_match.group(0)
+
+        if not _has_banner_image_cell_classes(opening_tag):
+            continue
+
+        container_end = _find_matching_div_end(text, container_match.start())
+
+        if container_end is None:
+            continue
+
+        container_html = text[container_match.start():container_end]
+        matched_hrefs = {
+            match.group(1).strip()
+            for match in href_pattern.finditer(container_html)
+        }.intersection(TEXT_SLOT_AD_BLACKLIST)
+
+        if (
+            not matched_hrefs
+            or not alert_pattern.search(container_html)
+            or not text_pattern.search(container_html)
+        ):
+            continue
+
+        output.append(text[cursor:container_match.start()])
+        cursor = container_end
+        blacklist_hits += len(matched_hrefs)
+        cells_removed += 1
+
+    if not cells_removed:
+        print("[TEXT_SLOT_AD] blacklist_hits=0 cells_removed=0")
+        return text
+
+    output.append(text[cursor:])
+    print(
+        "[TEXT_SLOT_AD] "
+        f"blacklist_hits={blacklist_hits} cells_removed={cells_removed}"
+    )
+    return "".join(output)
+
+
 def _build_ad_html():
     """
     Build a self-contained configurable pre-roll.
@@ -563,6 +635,7 @@ def rewrite_ad(text):
 
     text = _remove_video_card_ads(text)
     text = _remove_banner_image_ads(text)
+    text = _remove_text_slot_ads(text)
     return text
 
 
