@@ -27,32 +27,33 @@ SKIP_MARKER = "跳过"
 # VIDEO CARD ADVERTISEMENT RULES
 # ============================================================
 
-# Each rule is deliberately tied to one advertising type.  A matching href
-# alone is insufficient to remove arbitrary markup elsewhere on a page.
-VIDEO_CARD_AD_BLACKLIST = {
-    "https://evexymcv.cxksgtl.cc:6704/88.html?cid=4957645",
+# Each rule is deliberately tied to one advertising type.  Each entry is a
+# feature string matched only against href values inside that rule's own DOM
+# container; it is never a whole-page text replacement.
+VIDEO_CARD_AD_HREF_FEATURE_BLACKLIST = {
+    "cid=4957645",
 }
 
 
 # Image-banner cells use a different DOM structure from video cards.  Keep
 # their rules separate even when an advertising destination happens to match.
-BANNER_IMAGE_AD_BLACKLIST = {
-    "https://evexymcv.cxksgtl.cc:6704/88.html?cid=4957645",
-    "https://psuu.bahwhr.cc/",
+BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST = {
+    "cid=4957645",
+    "psuu.bahwhr.cc",
 }
 
 
 # Text slots are alert-style blocks and are intentionally kept separate from
 # image-banner cells, even where both share a destination URL.
-TEXT_SLOT_AD_BLACKLIST = {
-    "https://evexymcv.cxksgtl.cc:6704/88.html?cid=4957645",
+TEXT_SLOT_AD_HREF_FEATURE_BLACKLIST = {
+    "cid=4957645",
 }
 
 
 # This video-card layout is rendered in a .colVideoList wrapper instead of
-# the homepage .col-30/.video-elem.mb-3 grid used by VIDEO_CARD_AD_BLACKLIST.
-VIDEO_LIST_CARD_AD_BLACKLIST = {
-    "https://psuu.bahwhr.cc/",
+# the homepage .col-30/.video-elem.mb-3 grid used by VIDEO_CARD_AD.
+VIDEO_LIST_CARD_AD_HREF_FEATURE_BLACKLIST = {
+    "psuu.bahwhr.cc",
 }
 
 
@@ -272,6 +273,21 @@ def _find_matching_div_end(text, opening_start):
     return None
 
 
+def _match_href_features(hrefs, blacklist_features):
+    """Return configured feature strings found in one or more href values.
+
+    Rules call this only after they have identified their own safe DOM
+    container.  A feature may be a host, query parameter, path fragment, or
+    other stable substring such as ``cid=8361535`` or ``channelCode=mfd024``.
+    """
+
+    return {
+        feature
+        for feature in blacklist_features
+        if feature and any(feature in href for href in hrefs)
+    }
+
+
 def _remove_video_card_ads(text):
     """Remove blacklisted advertisements only from full video-card containers."""
 
@@ -320,14 +336,16 @@ def _remove_video_card_ads(text):
             for match in href_pattern.finditer(container_html)
         }
 
-        matched_hrefs = hrefs.intersection(VIDEO_CARD_AD_BLACKLIST)
+        matched_features = _match_href_features(
+            hrefs, VIDEO_CARD_AD_HREF_FEATURE_BLACKLIST
+        )
 
-        if not matched_hrefs:
+        if not matched_features:
             continue
 
         output.append(text[cursor:container_match.start()])
         cursor = container_end
-        blacklist_hits += len(matched_hrefs)
+        blacklist_hits += len(matched_features)
         containers_removed += 1
 
     if not containers_removed:
@@ -379,17 +397,20 @@ def _remove_video_list_card_ads(text):
         if not has_video_element:
             continue
 
-        matched_hrefs = {
+        hrefs = {
             match.group(1).strip()
             for match in href_pattern.finditer(container_html)
-        }.intersection(VIDEO_LIST_CARD_AD_BLACKLIST)
+        }
+        matched_features = _match_href_features(
+            hrefs, VIDEO_LIST_CARD_AD_HREF_FEATURE_BLACKLIST
+        )
 
-        if not matched_hrefs:
+        if not matched_features:
             continue
 
         output.append(text[cursor:container_match.start()])
         cursor = container_end
-        blacklist_hits += len(matched_hrefs)
+        blacklist_hits += len(matched_features)
         containers_removed += 1
 
     if not containers_removed:
@@ -437,17 +458,20 @@ def _remove_banner_image_ads(text):
             continue
 
         container_html = text[container_match.start():container_end]
-        matched_hrefs = {
+        hrefs = {
             match.group(1).strip()
             for match in href_pattern.finditer(container_html)
-        }.intersection(BANNER_IMAGE_AD_BLACKLIST)
+        }
+        matched_features = _match_href_features(
+            hrefs, BANNER_IMAGE_AD_HREF_FEATURE_BLACKLIST
+        )
 
-        if not matched_hrefs or not image_pattern.search(container_html):
+        if not matched_features or not image_pattern.search(container_html):
             continue
 
         output.append(text[cursor:container_match.start()])
         cursor = container_end
-        blacklist_hits += len(matched_hrefs)
+        blacklist_hits += len(matched_features)
         cells_removed += 1
 
     if not cells_removed:
@@ -498,13 +522,16 @@ def _remove_text_slot_ads(text):
             continue
 
         container_html = text[container_match.start():container_end]
-        matched_hrefs = {
+        hrefs = {
             match.group(1).strip()
             for match in href_pattern.finditer(container_html)
-        }.intersection(TEXT_SLOT_AD_BLACKLIST)
+        }
+        matched_features = _match_href_features(
+            hrefs, TEXT_SLOT_AD_HREF_FEATURE_BLACKLIST
+        )
 
         if (
-            not matched_hrefs
+            not matched_features
             or not alert_pattern.search(container_html)
             or not text_pattern.search(container_html)
         ):
@@ -512,7 +539,7 @@ def _remove_text_slot_ads(text):
 
         output.append(text[cursor:container_match.start()])
         cursor = container_end
-        blacklist_hits += len(matched_hrefs)
+        blacklist_hits += len(matched_features)
         cells_removed += 1
 
     if not cells_removed:
