@@ -38,6 +38,7 @@ VIDEO_CARD_AD_BLACKLIST = {
 # their rules separate even when an advertising destination happens to match.
 BANNER_IMAGE_AD_BLACKLIST = {
     "https://evexymcv.cxksgtl.cc:6704/88.html?cid=4957645",
+    "https://psuu.bahwhr.cc/",
 }
 
 
