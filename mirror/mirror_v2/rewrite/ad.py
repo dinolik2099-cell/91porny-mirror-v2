@@ -34,6 +34,13 @@ VIDEO_CARD_AD_BLACKLIST = {
 }
 
 
+# Image-banner cells use a different DOM structure from video cards.  Keep
+# their rules separate even when an advertising destination happens to match.
+BANNER_IMAGE_AD_BLACKLIST = {
+    "https://evexymcv.cxksgtl.cc:6704/88.html?cid=4957645",
+}
+
+
 # ============================================================
 # HELPERS
 # ============================================================
@@ -188,6 +195,21 @@ def _has_video_card_slot_classes(opening_tag):
     return {"col-30", "col-sm-20", "col-md-15"}.issubset(classes)
 
 
+def _has_banner_image_cell_classes(opening_tag):
+    """Return whether an opening div is a single banner-grid cell."""
+
+    class_match = re.search(
+        r'\bclass\s*=\s*["\']([^"\']*)["\']',
+        opening_tag,
+        re.IGNORECASE,
+    )
+
+    if not class_match:
+        return False
+
+    return "col-sm" in set(class_match.group(1).split())
+
+
 def _find_matching_div_end(text, opening_start):
     """Return the end offset of a div container, respecting nested divs."""
 
@@ -272,6 +294,63 @@ def _remove_video_card_ads(text):
         "[VIDEO_CARD_AD] "
         f"blacklist_hits={blacklist_hits} "
         f"containers_removed={containers_removed}"
+    )
+    return "".join(output)
+
+
+def _remove_banner_image_ads(text):
+    """Remove only blacklisted image-banner cells from their grid rows."""
+
+    container_pattern = re.compile(r"<div\b[^>]*>", re.IGNORECASE)
+    href_pattern = re.compile(
+        r'<a\b[^>]*\bhref\s*=\s*["\']([^"\']+)["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    image_pattern = re.compile(
+        r'<img\b[^>]*\bclass\s*=\s*["\'][^"\']*\bimg\b[^"\']*["\'][^>]*>',
+        re.IGNORECASE,
+    )
+    blacklist_hits = 0
+    cells_removed = 0
+    cursor = 0
+    output = []
+
+    for container_match in container_pattern.finditer(text):
+        if container_match.start() < cursor:
+            continue
+
+        opening_tag = container_match.group(0)
+
+        if not _has_banner_image_cell_classes(opening_tag):
+            continue
+
+        container_end = _find_matching_div_end(text, container_match.start())
+
+        if container_end is None:
+            continue
+
+        container_html = text[container_match.start():container_end]
+        matched_hrefs = {
+            match.group(1).strip()
+            for match in href_pattern.finditer(container_html)
+        }.intersection(BANNER_IMAGE_AD_BLACKLIST)
+
+        if not matched_hrefs or not image_pattern.search(container_html):
+            continue
+
+        output.append(text[cursor:container_match.start()])
+        cursor = container_end
+        blacklist_hits += len(matched_hrefs)
+        cells_removed += 1
+
+    if not cells_removed:
+        print("[BANNER_IMAGE_AD] blacklist_hits=0 cells_removed=0")
+        return text
+
+    output.append(text[cursor:])
+    print(
+        "[BANNER_IMAGE_AD] "
+        f"blacklist_hits={blacklist_hits} cells_removed={cells_removed}"
     )
     return "".join(output)
 
@@ -478,11 +557,13 @@ def rewrite_ad(text):
     """
     Apply stable, type-specific advertisement transformations.
 
-    Pre-roll insertion remains disabled.  VIDEO CARD filtering is limited to
-    blacklisted href values inside complete .video-elem.mb-3 containers.
+    Pre-roll insertion remains disabled.  Each advertisement type is filtered
+    only through its own blacklist and DOM-container contract.
     """
 
-    return _remove_video_card_ads(text)
+    text = _remove_video_card_ads(text)
+    text = _remove_banner_image_ads(text)
+    return text
 
 
 __all__ = [
