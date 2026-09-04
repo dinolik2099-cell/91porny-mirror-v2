@@ -488,7 +488,7 @@ def _remove_banner_image_ads(text):
         re.IGNORECASE,
     )
     image_pattern = re.compile(
-        r'<img\b[^>]*\bclass\s*=\s*["\'][^"\']*\bimg\b[^"\']*["\'][^>]*>',
+        r'<img\b[^>]*(?:\bsrc|\bdata-src)\s*=\s*["\'][^"\']+["\'][^>]*>',
         re.IGNORECASE,
     )
     blacklist_hits = 0
